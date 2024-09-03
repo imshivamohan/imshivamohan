@@ -1,1 +1,17 @@
-
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>kafka-ui</id>
+    <version>1.0.0</version>
+    <authors>Your Name</authors>
+    <owners>Your Organization</owners>
+    <licenseUrl>http://opensource.org/licenses/MIT</licenseUrl>
+    <projectUrl>http://yourprojecturl.com</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Installs Kafka UI with Docker using Rancher Desktop and sets up shortcuts.</description>
+    <tags>kafka ui docker rancher</tags>
+  </metadata>
+  <files>
+    <file src="tools\**\*" target="tools" />
+  </files>
+</package>
