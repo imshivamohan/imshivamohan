@@ -1,0 +1,24 @@
+Packaging with Chocolatey
+Create the Package Structure: Place the .nuspec file and install.ps1 script in a directory structure like this:
+
+Copy code
+kafka-ui/
+├── tools/
+│   ├── kafka-ui-docker-compose.yml
+│   └── truststore.jks
+├── install.ps1
+└── kafka-ui.nuspec
+Build the Package: Navigate to the directory containing your .nuspec file and run:
+
+bash
+Copy code
+choco pack
+Install the Package: Once you have the .nupkg file, you can install it using:
+
+bash
+Copy code
+choco install kafka-ui -s . --version 1.0.0
+This installs the Kafka UI package and sets up everything according to your install.ps1 script.
+
+Summary
+This Chocolatey package installs Rancher Desktop, validates Docker, copies required files, deploys Kafka UI via Docker Compose, and creates shortcuts for managing the service. Adjust the URLs and file paths as necessary for your specific environment and requirements.
