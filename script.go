@@ -1,26 +1,49 @@
+-- Create table for technical identities
+CREATE TABLE technical_identities (
+    identity VARCHAR(255) UNIQUE NOT NULL, -- Enforces unique identities and prevents nulls
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Automatically stores the insert timestamp
+    PRIMARY KEY (identity)
+);
+
+-- Create table for data domains
+CREATE TABLE data_domains (
+    domain_name VARCHAR(255) UNIQUE NOT NULL, -- Enforces unique domains and prevents nulls
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Automatically stores the insert timestamp
+    PRIMARY KEY (domain_name)
+);
+
+-- Create table for mapping between technical identities and data domains
+CREATE TABLE data_domain_identities (
+    identity VARCHAR(255) NOT NULL,
+    domain_name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Automatically stores the insert timestamp
+    PRIMARY KEY (identity, domain_name), -- Prevents duplicate identity-domain mappings
+    FOREIGN KEY (identity) REFERENCES technical_identities(identity),
+    FOREIGN KEY (domain_name) REFERENCES data_domains(domain_name)
+);
+
 package main
 
 import (
-	"bufio"
+	"database/sql"
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
-	"sort"
+
+	_ "github.com/lib/pq"
 )
 
 func main() {
-	// Define the -f flag for the file path
-	filePath := flag.String("f", "", "Path to the security list file")
+	filePath := flag.String("f", "", "Path to the security.list file")
 	flag.Parse()
 
-	// Check if the file path is provided
 	if *filePath == "" {
-		fmt.Println("Please provide the path to the security list file using -f")
+		fmt.Println("Please provide a file path with the -f flag.")
 		return
 	}
 
-	// Open the specified security.list file
 	file, err := os.Open(*filePath)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
@@ -28,73 +51,70 @@ func main() {
 	}
 	defer file.Close()
 
-	// Create sets to avoid duplicates
-	identitiesSet := make(map[string]struct{})
-	domainsSet := make(map[string]struct{})
-	mapping := make(map[string][]string)
+	reader := csv.NewReader(file)
+	reader.Comma = ','
+	reader.FieldsPerRecord = -1
 
-	// Read the file line by line
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		// Split the line into domain and identities part
-		parts := strings.Split(line, ",")
-		if len(parts) != 2 {
-			fmt.Println("Skipping invalid line:", line)
-			continue
-		}
+	identities := make(map[string]struct{})
+	domains := make(map[string]struct{})
+	mappings := make(map[string]map[string]struct{})
 
-		domain := strings.TrimSpace(parts[0])
-		identities := strings.Split(strings.TrimSpace(parts[1]), ":")
-
-		// Add the domain to domainsSet
-		domainsSet[domain] = struct{}{}
-
-		// Add each identity to identitiesSet and create a mapping
-		for _, identity := range identities {
-			identity = strings.TrimSpace(identity)
-			identitiesSet[identity] = struct{}{}
-			mapping[identity] = append(mapping[identity], domain)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
+	records, err := reader.ReadAll()
+	if err != nil {
 		fmt.Println("Error reading file:", err)
 		return
 	}
 
-	// Generate SQL statements
-	generateSQL(identitiesSet, domainsSet, mapping)
-}
+	for _, record := range records {
+		if len(record) != 2 {
+			continue
+		}
+		domain := strings.TrimSpace(record[0])
+		identityList := strings.Split(strings.TrimSpace(record[1]), ":")
 
-func generateSQL(identitiesSet map[string]struct{}, domainsSet map[string]struct{}, mapping map[string][]string) {
-	// Generate SQL for technical identities
-	fmt.Println("-- List of technical identities")
-	var identities []string
-	for identity := range identitiesSet {
-		identities = append(identities, identity)
-	}
-	sort.Strings(identities)
-	for _, identity := range identities {
-		fmt.Printf("INSERT INTO technical_identities (identity) VALUES ('%s');\n", identity)
-	}
+		domains[domain] = struct{}{}
 
-	// Generate SQL for domains
-	fmt.Println("-- List of domains")
-	var domains []string
-	for domain := range domainsSet {
-		domains = append(domains, domain)
-	}
-	sort.Strings(domains)
-	for _, domain := range domains {
-		fmt.Printf("INSERT INTO domains (domain_name) VALUES ('%s');\n", domain)
-	}
+		if _, exists := mappings[domain]; !exists {
+			mappings[domain] = make(map[string]struct{})
+		}
 
-	// Generate SQL for mapping between identities and domains
-	fmt.Println("-- Mapping between technical identities and domains")
-	for identity, domains := range mapping {
-		for _, domain := range domains {
-			fmt.Printf("INSERT INTO identity_domain_mapping (identity, domain_name) VALUES ('%s', '%s');\n", identity, domain)
+		for _, identity := range identityList {
+			identity = strings.TrimSpace(identity)
+			identities[identity] = struct{}{}
+			mappings[domain][identity] = struct{}{}
 		}
 	}
+
+	connStr := "user=yourusername dbname=yourdbname sslmode=disable" 
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		fmt.Println("Error connecting to database:", err)
+		return
+	}
+	defer db.Close()
+
+	for identity := range identities {
+		_, err := db.Exec("INSERT INTO technical_identities (identity) VALUES ($1) ON CONFLICT (identity) DO NOTHING", identity)
+		if err != nil {
+			fmt.Println("Error inserting identity:", err)
+		}
+	}
+
+	for domain := range domains {
+		_, err := db.Exec("INSERT INTO data_domains (domain_name) VALUES ($1) ON CONFLICT (domain_name) DO NOTHING", domain)
+		if err != nil {
+			fmt.Println("Error inserting domain:", err)
+		}
+	}
+
+	for domain, identitySet := range mappings {
+		for identity := range identitySet {
+			_, err := db.Exec("INSERT INTO data_domain_identities (identity, domain_name) VALUES ($1, $2) ON CONFLICT (identity, domain_name) DO NOTHING", identity, domain)
+			if err != nil {
+				fmt.Println("Error inserting mapping:", err)
+			}
+		}
+	}
+
+	fmt.Println("Data inserted successfully!")
 }
