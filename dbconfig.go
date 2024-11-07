@@ -1,3 +1,15 @@
+
+database:
+  driver: "postgres"  # or "mysql", "sqlite", etc.
+  host: "localhost"
+  port: 5432
+  user: "username"
+  password: "password"
+  dbname: "your_database"
+
+####################################
+
+
 package dbutils
 
 import (
