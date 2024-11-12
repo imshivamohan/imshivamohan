@@ -1,0 +1,310 @@
+To make this database connection code reusable across multiple files, you can encapsulate it into a separate package. This package can expose functions to connect to the database and interact with it, such as inserting records.
+
+Here’s how you can do it:
+
+1. Create a Database Package
+
+Let’s create a db package with two files:
+	•	db/connection.go: For setting up the database connection.
+	•	db/operations.go: For defining database operations, such as inserting data.
+
+2. Set Up db/connection.go
+
+The connection.go file will handle connecting to the database and returning a connection pool.
+
+// db/connection.go
+package db
+
+import (
+    "database/sql"
+    "fmt"
+    "log"
+    "os"
+    "time"
+
+    _ "github.com/lib/pq"
+    "github.com/joho/godotenv"
+)
+
+var DB *sql.DB
+
+// Initialize loads the environment and sets up the database connection pool
+func Initialize() {
+    // Load environment variables from .env file
+    err := godotenv.Load()
+    if err != nil {
+        log.Fatal("Error loading .env file")
+    }
+
+    // Get database configuration from environment variables
+    user := os.Getenv("DB_USER")
+    password := os.Getenv("DB_PASSWORD")
+    dbname := os.Getenv("DB_NAME")
+    host := os.Getenv("DB_HOST")
+    port := os.Getenv("DB_PORT")
+    sslmode := os.Getenv("DB_SSLMODE")
+    schema := os.Getenv("DB_SCHEMA")
+
+    // Create a connection string
+    connStr := fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%s sslmode=%s search_path=%s",
+        user, password, dbname, host, port, sslmode, schema)
+
+    // Open the database connection
+    DB, err = sql.Open("postgres", connStr)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Set up connection pooling parameters
+    DB.SetMaxOpenConns(25)                 // Max open connections
+    DB.SetMaxIdleConns(25)                 // Max idle connections
+    DB.SetConnMaxLifetime(5 * time.Minute) // Max connection lifetime
+
+    // Test the connection
+    err = DB.Ping()
+    if err != nil {
+        log.Fatal("Could not connect to the database:", err)
+    }
+
+    fmt.Println("Database connection established with connection pooling.")
+}
+
+// Close closes the database connection
+func Close() {
+    if DB != nil {
+        DB.Close()
+    }
+}
+
+This file sets up the Initialize function, which loads the environment variables and connects to the database, and the Close function, which cleans up the connection.
+
+3. Create db/operations.go
+
+Define a function for inserting data into a table (e.g., InsertRecord) in operations.go:
+
+// db/operations.go
+package db
+
+import "fmt"
+
+// InsertRecord inserts a new record into the specified table
+func InsertRecord(table string, values ...interface{}) error {
+    query := fmt.Sprintf("INSERT INTO %s VALUES ($1, $2, $3)", table) // Adjust this to your table schema
+    _, err := DB.Exec(query, values...)
+    if err != nil {
+        return fmt.Errorf("error inserting record into %s: %v", table, err)
+    }
+    return nil
+}
+
+This InsertRecord function accepts a table name and variable values, then inserts the data. Adjust the query variable to match your specific table schema.
+
+4. Use the db Package in Your Main Application
+
+Now you can use this db package in other parts of your application. Here’s an example:
+
+// main.go
+package main
+
+import (
+    "log"
+
+    "path/to/your/db" // Replace with the actual path to your db package
+)
+
+func main() {
+    // Initialize the database connection
+    db.Initialize()
+    defer db.Close()
+
+    // Example usage of inserting a record
+    err := db.InsertRecord("your_table_name", "value1", "value2", "value3") // Adjust to match your schema
+    if err != nil {
+        log.Fatalf("Error inserting record: %v", err)
+    }
+
+    log.Println("Record inserted successfully.")
+}
+
+Explanation
+
+	1.	Initialize: The db.Initialize() function establishes the database connection and sets up pooling.
+	2.	InsertRecord: Use db.InsertRecord to insert data into specific tables.
+	3.	Close: defer db.Close() ensures the connection is closed when the application exits.
+
+This structure makes the db package reusable across different parts of your application, and you can add more functions in operations.go as needed.
+
+###############################
+
+To add configurable log levels, you can modify the db package to log messages based on the specified log level (e.g., DEBUG or INFO). This can be achieved by adding a logger that checks the log level before printing messages.
+
+Below, I’ll show how to implement this by using the log package and setting up a global logLevel variable that determines the logging behavior based on a level passed in as an argument.
+
+1. Update db/connection.go to Support Log Levels
+
+First, let’s add log level configuration in db/connection.go. We’ll create constants for log levels and use a logLevel variable that controls the log verbosity.
+
+// db/connection.go
+package db
+
+import (
+    "database/sql"
+    "fmt"
+    "log"
+    "os"
+    "time"
+
+    _ "github.com/lib/pq"
+    "github.com/joho/godotenv"
+)
+
+var DB *sql.DB
+var logLevel string
+
+// Log level constants
+const (
+    DEBUG = "DEBUG"
+    INFO  = "INFO"
+)
+
+// Initialize loads the environment, sets up the database connection pool, and sets log level
+func Initialize(level string) {
+    // Set the global log level
+    logLevel = level
+
+    // Load environment variables from .env file
+    err := godotenv.Load()
+    if err != nil {
+        logFatal("Error loading .env file")
+    }
+
+    // Get database configuration from environment variables
+    user := os.Getenv("DB_USER")
+    password := os.Getenv("DB_PASSWORD")
+    dbname := os.Getenv("DB_NAME")
+    host := os.Getenv("DB_HOST")
+    port := os.Getenv("DB_PORT")
+    sslmode := os.Getenv("DB_SSLMODE")
+    schema := os.Getenv("DB_SCHEMA")
+
+    // Create a connection string
+    connStr := fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%s sslmode=%s search_path=%s",
+        user, password, dbname, host, port, sslmode, schema)
+
+    // Open the database connection
+    DB, err = sql.Open("postgres", connStr)
+    if err != nil {
+        logFatal("Could not connect to the database:", err)
+    }
+
+    // Set up connection pooling parameters
+    DB.SetMaxOpenConns(25)                 // Max open connections
+    DB.SetMaxIdleConns(25)                 // Max idle connections
+    DB.SetConnMaxLifetime(5 * time.Minute) // Max connection lifetime
+
+    // Test the connection
+    err = DB.Ping()
+    if err != nil {
+        logFatal("Could not connect to the database:", err)
+    }
+
+    logInfo("Database connection established with connection pooling.")
+}
+
+// Close closes the database connection
+func Close() {
+    if DB != nil {
+        DB.Close()
+    }
+}
+
+// logDebug logs messages only if log level is DEBUG
+func logDebug(msg ...interface{}) {
+    if logLevel == DEBUG {
+        log.Println("[DEBUG]", fmt.Sprint(msg...))
+    }
+}
+
+// logInfo logs messages only if log level is INFO or DEBUG
+func logInfo(msg ...interface{}) {
+    if logLevel == INFO || logLevel == DEBUG {
+        log.Println("[INFO]", fmt.Sprint(msg...))
+    }
+}
+
+// logFatal logs fatal messages and exits
+func logFatal(msg ...interface{}) {
+    log.Println("[FATAL]", fmt.Sprint(msg...))
+    os.Exit(1)
+}
+
+Explanation of Logging Functions
+
+	•	logDebug: Logs only when logLevel is DEBUG.
+	•	logInfo: Logs when logLevel is INFO or DEBUG.
+	•	logFatal: Always logs fatal errors and exits the program.
+
+2. Update db/operations.go to Use Logging
+
+In operations.go, use these logging functions to output messages based on the log level:
+
+// db/operations.go
+package db
+
+import "fmt"
+
+// InsertRecord inserts a new record into the specified table
+func InsertRecord(table string, values ...interface{}) error {
+    query := fmt.Sprintf("INSERT INTO %s VALUES ($1, $2, $3)", table) // Adjust this to your table schema
+    logDebug("Executing query:", query, "with values:", values)
+    
+    _, err := DB.Exec(query, values...)
+    if err != nil {
+        return fmt.Errorf("error inserting record into %s: %v", table, err)
+    }
+    
+    logInfo("Record inserted successfully into table", table)
+    return nil
+}
+
+3. Use the db Package in Your Main Application with Log Level Argument
+
+Finally, update your main application to pass the log level as an argument to the db.Initialize function:
+
+// main.go
+package main
+
+import (
+    "log"
+    "os"
+
+    "path/to/your/db" // Replace with the actual path to your db package
+)
+
+func main() {
+    // Get log level from arguments or default to INFO
+    logLevel := INFO
+    if len(os.Args) > 1 {
+        logLevel = os.Args[1]
+    }
+
+    // Initialize the database connection with the specified log level
+    db.Initialize(logLevel)
+    defer db.Close()
+
+    // Example usage of inserting a record
+    err := db.InsertRecord("your_table_name", "value1", "value2", "value3") // Adjust to match your schema
+    if err != nil {
+        log.Fatalf("Error inserting record: %v", err)
+    }
+
+    log.Println("Record inserted successfully.")
+}
+
+Usage Example
+
+Run your application with the desired log level as a command-line argument. For example:
+
+go run main.go DEBUG
+
+This setup allows you to control the log verbosity by setting the log level to DEBUG or INFO. If you set the level to DEBUG, both INFO and DEBUG logs will be shown; if set to INFO, only informational logs will be shown.
