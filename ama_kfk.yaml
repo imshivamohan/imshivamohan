@@ -1,0 +1,197 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ama-metrics-prometheus-config
+  namespace: kube-system
+data:
+  prometheus-config: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+
+      # Kafka Brokers - Core Kafka Health & Performance Metrics
+      - job_name: "kafka-brokers"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["kafka-dev"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "kafka-broker"
+            action: keep
+          - source_labels: [__address__]
+            regex: "(.*):\d+"
+            replacement: "$1:7778"
+            target_label: __address__
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: "kafka_server_BrokerTopicMetrics_BytesInPerSec|\
+                    kafka_server_BrokerTopicMetrics_BytesOutPerSec|\
+                    kafka_server_RequestsPerSec|\
+                    kafka_server_OfflinePartitionsCount|\
+                    kafka_server_UnderReplicatedPartitions|\
+                    kafka_server_LeaderElectionRateAndTimeMs|\
+                    kafka_server_PurgatorySize|\
+                    kafka_network_RequestQueueSize|\
+                    kafka_server_LogFlushRateAndTimeMs|\
+                    kafka_server_TotalTimeMs"
+            action: keep
+          - action: drop
+
+      # ZooKeeper - Essential Coordination Metrics
+      - job_name: "zookeeper"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["kafka-dev"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "zookeeper"
+            action: keep
+          - source_labels: [__address__]
+            regex: "(.*):\d+"
+            replacement: "$1:7000"
+            target_label: __address__
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: "zookeeper_in_memory_data_tree_node_count|\
+                    zookeeper_outstanding_requests|\
+                    zookeeper_packets_received|\
+                    zookeeper_packets_sent|\
+                    zookeeper_avg_latency|\
+                    zookeeper_num_alive_connections|\
+                    zookeeper_watch_count"
+            action: keep
+          - action: drop
+
+      # Kafka Connect - Connector & Task Monitoring
+      - job_name: "kafka-connect"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["kafka-dev"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "kafka-connect"
+            action: keep
+          - source_labels: [__address__]
+            regex: "(.*):\d+"
+            replacement: "$1:8083"
+            target_label: __address__
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: "kafka_connect_connect_worker_metrics_running_task_count|\
+                    kafka_connect_connect_worker_metrics_failed_tasks|\
+                    kafka_connect_connect_worker_metrics_connector_startup_failure_total|\
+                    kafka_connect_connect_worker_metrics_rebalance_rate_per_hour|\
+                    kafka_connect_connect_worker_metrics_connector_count|\
+                    kafka_connect_connect_worker_metrics_rebalance_total"
+            action: keep
+          - action: drop
+
+      #KSQL - Query Processing Performance
+      - job_name: "ksql"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["kafka-dev"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "ksql"
+            action: keep
+          - source_labels: [__address__]
+            regex: "(.*):\d+"
+            replacement: "$1:8088"
+            target_label: __address__
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: "ksql_streams_thread_total_blocked_time|\
+                    ksql_streams_thread_total_created_time|\
+                    ksql_persistent_queries_running_count|\
+                    ksql_persistent_queries_total|\
+                    ksql_query_error_rate|\
+                    ksql_active_queries"
+            action: keep
+          - action: drop
+
+      #Schema Registry - API & Schema Usage Monitoring
+      - job_name: "schema-registry"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["kafka-dev"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "schema-registry"
+            action: keep
+          - source_labels: [__address__]
+            regex: "(.*):\d+"
+            replacement: "$1:8081"
+            target_label: __address__
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: "schema_registry_request_count|\
+                    schema_registry_request_latency_avg|\
+                    schema_registry_request_success_total|\
+                    schema_registry_schema_compatibility"
+            action: keep
+          - action: drop
+
+      #Kafka Producers - Message Publishing Performance
+      - job_name: "kafka-producers"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["kafka-dev"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "kafka-producer"
+            action: keep
+          - source_labels: [__address__]
+            regex: "(.*):\d+"
+            replacement: "$1:9092"
+            target_label: __address__
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: "kafka_producer_request_rate|\
+                    kafka_producer_request_latency_avg|\
+                    kafka_producer_response_rate|\
+                    kafka_producer_byte_rate|\
+                    kafka_producer_compression_rate"
+            action: keep
+          - action: drop
+
+      #Kafka Consumers - Message Consumption & Lag Monitoring
+      - job_name: "kafka-consumers"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["kafka-dev"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "kafka-consumer"
+            action: keep
+          - source_labels: [__address__]
+            regex: "(.*):\d+"
+            replacement: "$1:9092"
+            target_label: __address__
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: "kafka_consumer_lag|\
+                    kafka_consumer_commit_rate|\
+                    kafka_consumer_fetch_rate|\
+                    kafka_consumer_records_lag_max|\
+                    kafka_consumer_fetch_latency_avg|\
+                    kafka_consumer_assignment_changes|\
+                    kafka_consumer_bytes_consumed_rate"
+            action: keep
+          - action: drop
