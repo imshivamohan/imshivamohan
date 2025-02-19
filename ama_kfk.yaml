@@ -1,3 +1,55 @@
+
+hostPort: 0.0.0.0:7778  # Port where JMX Exporter will expose metrics
+
+# Convert metric names and labels to lowercase
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+# Whitelist only specific JMX MBeans
+whitelistObjectNames: [
+  "org.apache.ZooKeeperService:name0=ReplicatedServer_id*",
+  "org.apache.ZooKeeperService:name1=ServerStats, name2=*",
+  "org.apache.ZooKeeperService:name1=InMemoryDataTree, name2=NodeCount"
+]
+
+rules: [
+  # 1️⃣ Zookeeper Mode (1=Leader, 0=Follower, -1=Standalone)
+  {
+    pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(.+), name1=ServerStats, name2=ServerState><>Value",
+    name: "zookeeper_server_state",
+    type: "GAUGE"
+  },
+
+  # 2️⃣ Number of Alive Connections (Client Connections)
+  {
+    pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(.+), name1=ServerStats, name2=NumAliveConnections><>Value",
+    name: "zookeeper_client_connections",
+    type: "GAUGE"
+  },
+
+  # 3️⃣ Average Request Latency (ms)
+  {
+    pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(.+), name1=ServerStats, name2=AvgRequestLatency><>Value",
+    name: "zookeeper_avg_latency_ms",
+    type: "GAUGE"
+  },
+
+  # 4️⃣ Outstanding Requests (Queued Requests)
+  {
+    pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(.+), name1=ServerStats, name2=OutstandingRequests><>Value",
+    name: "zookeeper_outstanding_requests",
+    type: "GAUGE"
+  },
+
+  # 5️⃣ Number of znodes in the cluster (Total data nodes)
+  {
+    pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(.+), name1=InMemoryDataTree, name2=NodeCount><>Value",
+    name: "zookeeper_znode_count",
+    type: "GAUGE"
+  }
+]
+
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
